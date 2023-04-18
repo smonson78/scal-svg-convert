@@ -182,12 +182,12 @@ def fix_path(path):
                 # point 1 relative to origin
                 rel_x1 = x1 - midpoint_x
                 rel_y1 = y1 - midpoint_y
-                print(f"<!-- point 1 original coords: {p1} -->")
+                #print(f"<!-- point 1 original coords: {p1} -->")
                 #print(f"<!-- point 1 relative coords: {rel_x1:.4f}, {rel_y1:.4f} -->")
                 #p1_angle = math.asin(rel_y1) if side else (math.pi + math.asin(rel_y1))
                 # Y is negative because SVG's coords are upside down compared to python's math module's
                 p1_angle = math.atan2(-rel_y1, rel_x1) % (2 * math.pi)
-                print(f"<!-- point 1 angle: {as_degrees(p1_angle):.4f} -->")
+                #print(f"<!-- point 1 angle: {as_degrees(p1_angle):.4f} -->")
 
                 # point 2 relative to origin
                 rel_x2 = x2 - midpoint_x
@@ -234,20 +234,26 @@ def fix_path(path):
                     sp_x = math.cos(start_angle)
                     sp_y = -math.sin(start_angle)
                     print(f"<!--         Start point of segment is {(sp_x, sp_y)} -->")
-                    #print(f"<!--         Slope of line from start point is 1:{math.tan(start_angle + (math.pi / 2))} -->")
 
                     # Start point of control handle 2 line is on circumference of circle at end of arc
                     # Tangent of control handle 2 line is tangent of circle angle
                     ep_x = math.cos(end_angle)
                     ep_y = -math.sin(end_angle)
                     print(f"<!--         End point of segment is {(ep_x, ep_y)} -->")
-                    #print(f"<!--         Slope of line from end point is 1:{math.tan(end_angle + (math.pi / 2))} -->")
 
                     # Find midpoint of arc (on circle)
-                    eff_start_angle = start_angle if start_angle > end_angle else (start_angle + (2 * math.pi))
-                    half_angle = (eff_start_angle - end_angle) / 2
-                    midpoint_angle = end_angle + half_angle
-                    #print(f"<!--         Midpoint of segment is {as_degrees(midpoint_angle)} -->")
+                    if sweep_flag:
+                        # Clockwise, i.e. going negative. Start angle should be higher.
+                        eff_start_angle = start_angle if start_angle > end_angle else (start_angle + (2 * math.pi))
+                        half_angle = (eff_start_angle - end_angle) / 2
+                        midpoint_angle = start_angle - half_angle
+                    else:
+                        # Anti-clockwise, going positive. Start angle should be lower.
+                        eff_start_angle = start_angle if start_angle < end_angle else (start_angle - (2 * math.pi))
+                        half_angle = (end_angle - eff_start_angle) / 2
+                        midpoint_angle = start_angle + half_angle
+
+                    print(f"<!--         sweep={sweep_flag} eff_start_angle={as_degrees(eff_start_angle)} half_angle={as_degrees(half_angle)} midpoint_angle={as_degrees(midpoint_angle)} -->")
 
                     # Find tangent line of midpoint
                     #print(f"<!--         Slope of line from midpoint is 1:{math.tan(midpoint_angle + (math.pi / 2))} -->")
@@ -261,54 +267,58 @@ def fix_path(path):
                     fig_2L = fig_4x / math.cos(fig_a)
 
                     # start and end control points
+                    adjustment = -(math.pi / 2) if sweep_flag else (math.pi / 2)
 
-                    start_2L_x = midpoint_x + sp_x + (math.cos(start_angle - (math.pi / 2)) * fig_2L)
-                    start_2L_y = midpoint_y + sp_y + (-math.sin(start_angle - (math.pi / 2)) * fig_2L)
+                    start_2L_x = midpoint_x + sp_x + (math.cos(start_angle + adjustment) * fig_2L)
+                    start_2L_y = midpoint_y + sp_y + (-math.sin(start_angle + adjustment) * fig_2L)
 
-                    end_2L_x = midpoint_x + ep_x + (math.cos(end_angle + (math.pi / 2)) * fig_2L)
-                    end_2L_y = midpoint_y + ep_y + (-math.sin(end_angle + (math.pi / 2)) * fig_2L)
+                    end_2L_x = midpoint_x + ep_x + (math.cos(end_angle - adjustment) * fig_2L)
+                    end_2L_y = midpoint_y + ep_y + (-math.sin(end_angle - adjustment) * fig_2L)
 
-                    if True:
+                    # Scale back up to original size
+                    us_scontrol_x = scale(x1, start_2L_x, rx)
+                    us_scontrol_y = scale(y1, start_2L_y, ry)
+                    us_econtrol_x = scale(x1, end_2L_x, rx)
+                    us_econtrol_y = scale(y1, end_2L_y, ry)
+
+                    # Rotate back to original angle
+                    r_scontrol = rotate(last_pos, (us_scontrol_x, us_scontrol_y), angle)
+                    r_econtrol = rotate(last_pos, (us_econtrol_x, us_econtrol_y), angle)
+
+                    beziers.append([r_scontrol[0], r_scontrol[1], r_econtrol[0], r_econtrol[1], scale(x1, midpoint_x + ep_x, rx), scale(y1, midpoint_y + ep_y, ry)])
+
+                    #if iteration == 1:
+                    if False:
                         # Construction lines
                         #print(f'<circle style="fill:#000000;fill-opacity:1" r="1" cx="{scale(x1, midpoint_x + sp_x, rx)}" cy="{scale(y1, midpoint_y + sp_y, rx) + 120}" />')
                         #print(f'<circle style="fill:#000000;fill-opacity:1" r="1" cx="{scale(x1, midpoint_x + ep_x, rx)}" cy="{scale(y1, midpoint_y + ep_y, rx) + 120}" />')
-                        #print(f'<path style="stroke:#000000;stroke-width:0.25;fill-opacity:0" d="M {scale(x1, midpoint_x + sp_x, rx)} {scale(y1, midpoint_y + sp_y, rx) + 120} L {scale(x1, midpoint_x, rx)} {scale(y1, midpoint_y, rx) + 120}" />')
-                        #print(f'<path style="stroke:#000000;stroke-width:0.25;fill-opacity:0" d="M {scale(x1, midpoint_x + ep_x, rx)} {scale(y1, midpoint_y + ep_y, rx) + 120} L {scale(x1, midpoint_x, rx)} {scale(y1, midpoint_y, rx) + 120}" />')
+                        print(f'<path style="stroke:#000000;stroke-width:0.25;fill-opacity:0" d="M {scale(x1, midpoint_x + sp_x, rx)} {scale(y1, midpoint_y + sp_y, rx) + 120} L {scale(x1, midpoint_x, rx)} {scale(y1, midpoint_y, rx) + 120}" />')
+                        print(f'<path style="stroke:#000000;stroke-width:0.25;fill-opacity:0" d="M {scale(x1, midpoint_x + ep_x, rx)} {scale(y1, midpoint_y + ep_y, rx) + 120} L {scale(x1, midpoint_x, rx)} {scale(y1, midpoint_y, rx) + 120}" />')
 
                         midpoint_edge_x = midpoint_x + math.cos(midpoint_angle)
-                        midpoint_edge_y = midpoint_y + math.sin(midpoint_angle)
-                        #print(f'<circle style="fill:#000000;fill-opacity:1" r="1.25" cx="{scale(x1, midpoint_edge_x, rx)}" cy="{scale(y1, midpoint_edge_y, rx) + 120}" />')
-                        #print(f'<path style="stroke:#000000;stroke-width:0.25;fill-opacity:0" d="M {scale(x1, midpoint_edge_x, rx)} {scale(y1, midpoint_edge_y, rx) + 120} L {scale(x1, midpoint_x, rx)} {scale(y1, midpoint_y, rx) + 120}" />')
+                        midpoint_edge_y = midpoint_y - math.sin(midpoint_angle)
+                        print(f'<circle style="fill:#000000;fill-opacity:1" r="1.25" cx="{scale(x1, midpoint_edge_x, rx)}" cy="{scale(y1, midpoint_edge_y, rx) + 120}" />')
+                        print(f'<path style="stroke:#000000;stroke-width:0.25;fill-opacity:0" d="M {scale(x1, midpoint_edge_x, rx)} {scale(y1, midpoint_edge_y, rx) + 120} L {scale(x1, midpoint_x, rx)} {scale(y1, midpoint_y, rx) + 120}" />')
 
                         point_y_x = midpoint_x + (math.cos(midpoint_angle) * fig_y)
-                        point_y_y = midpoint_y + (math.sin(midpoint_angle) * fig_y)
+                        point_y_y = midpoint_y - (math.sin(midpoint_angle) * fig_y)
                         # y
-                        #print(f'<circle style="fill:#000000;fill-opacity:1" r="1" cx="{scale(x1, point_y_x, rx)}" cy="{scale(y1, point_y_y, rx) + 120}" />')
-                        #print(f'<path style="stroke:#000000;stroke-width:0.15;fill-opacity:0" d="M {scale(x1, midpoint_x + sp_x, rx)} {scale(y1, midpoint_y + sp_y, rx) + 120} L {scale(x1, point_y_x, rx)} {scale(y1, point_y_y, rx) + 120}" />')
+                        print(f'<circle style="fill:#000000;fill-opacity:1" r="1" cx="{scale(x1, point_y_x, rx)}" cy="{scale(y1, point_y_y, rx) + 120}" />')
+                        print(f'<path style="stroke:#000000;stroke-width:0.15;fill-opacity:0" d="M {scale(x1, midpoint_x + sp_x, rx)} {scale(y1, midpoint_y + sp_y, rx) + 120} L {scale(x1, point_y_x, rx)} {scale(y1, point_y_y, rx) + 120}" />')
 
                         # Control handles - red for start, black for end
-                        #print(f'<path style="stroke:#ff0000;stroke-width:0.25;fill-opacity:0" d="M {scale(x1, start_2L_x, rx)} {scale(y1, start_2L_y, rx) + 120} L {scale(x1, midpoint_x + sp_x, rx)} {scale(y1, midpoint_y + sp_y, rx) + 120}" />')
-                        #print(f'<path style="stroke:#000000;stroke-width:0.25;fill-opacity:0" d="M {scale(x1, end_2L_x, rx)} {scale(y1, end_2L_y, rx) + 120} L {scale(x1, midpoint_x + ep_x, rx)} {scale(y1, midpoint_y + ep_y, rx) + 120}" />')
-                        #print(f'<circle style="fill:#000000;fill-opacity:1" r="0.5" cx="{scale(x1, start_2L_x, rx)}" cy="{scale(y1, start_2L_y, rx) + 120}" />')
-                        #print(f'<circle style="fill:#000000;fill-opacity:1" r="0.5" cx="{scale(x1, end_2L_x, rx)}" cy="{scale(y1, end_2L_y, rx) + 120}" />')
+                        print(f'<path style="stroke:#ff0000;stroke-width:0.25;fill-opacity:0" d="M {scale(x1, start_2L_x, rx)} {scale(y1, start_2L_y, rx) + 120} L {scale(x1, midpoint_x + sp_x, rx)} {scale(y1, midpoint_y + sp_y, rx) + 120}" />')
+                        print(f'<path style="stroke:#000000;stroke-width:0.25;fill-opacity:0" d="M {scale(x1, end_2L_x, rx)} {scale(y1, end_2L_y, rx) + 120} L {scale(x1, midpoint_x + ep_x, rx)} {scale(y1, midpoint_y + ep_y, rx) + 120}" />')
+                        print(f'<circle style="fill:#000000;fill-opacity:1" r="0.5" cx="{scale(x1, start_2L_x, rx)}" cy="{scale(y1, start_2L_y, rx) + 120}" />')
+                        print(f'<circle style="fill:#000000;fill-opacity:1" r="0.5" cx="{scale(x1, end_2L_x, rx)}" cy="{scale(y1, end_2L_y, rx) + 120}" />')
 
                         # The actual bezier
-                        #print(f'<path style="stroke:#0000ff;stroke-width:0.25;fill-opacity:0" ' +
-                        #      f'd="M {scale(x1, midpoint_x + sp_x, rx)} {scale(y1, midpoint_y + sp_y, rx) + 120} ' +
-                        #      f'C {scale(x1, start_2L_x, rx)} {scale(y1, start_2L_y, rx) + 120} ' + 
-                        #      f'{scale(x1, end_2L_x, rx)} {scale(y1, end_2L_y, rx) + 120} ' + 
-                        #      f'{scale(x1, midpoint_x + ep_x, rx)} {scale(y1, midpoint_y + ep_y, rx) + 120} Z" />')
+                        print(f'<path style="stroke:#0000ff;stroke-width:0.25;fill-opacity:0" ' +
+                              f'd="M {scale(x1, midpoint_x + sp_x, rx)} {scale(y1, midpoint_y + sp_y, rx) + 120} ' +
+                              f'C {scale(x1, start_2L_x, rx)} {scale(y1, start_2L_y, rx) + 120} ' + 
+                              f'{scale(x1, end_2L_x, rx)} {scale(y1, end_2L_y, rx) + 120} ' + 
+                              f'{scale(x1, midpoint_x + ep_x, rx)} {scale(y1, midpoint_y + ep_y, rx) + 120} Z" />')
                         
-                        # Scale back up to original size
-                        us_scontrol_x = scale(x1, start_2L_x, rx)
-                        us_scontrol_y = scale(y1, start_2L_y, ry)
-                        us_econtrol_x = scale(x1, end_2L_x, rx)
-                        us_econtrol_y = scale(y1, end_2L_y, ry)
-
-                        # Rotate back to original angle
-                        r_scontrol = rotate(last_pos, (us_scontrol_x, us_scontrol_y), angle)
-                        r_econtrol = rotate(last_pos, (us_econtrol_x, us_econtrol_y), angle)
-
                         # Test dots
                         #print(f'<circle style="fill:#0000ff;fill-opacity:1" r="1" cx="{r_scontrol[0]}" cy="{r_scontrol[1]}" />')
                         #print(f'<circle style="fill:#0000ff;fill-opacity:1" r="1" cx="{r_econtrol[0]}" cy="{r_econtrol[1]}" />')
@@ -327,28 +337,17 @@ def fix_path(path):
                         #      f'{r_econtrol[0]} {r_econtrol[1]} ' + 
                         #      f'{scale(x1, midpoint_x + ep_x, rx)} {scale(y1, midpoint_y + ep_y, ry)} Z" />')
 
-                        beziers.append([r_scontrol[0], r_scontrol[1], r_econtrol[0], r_econtrol[1], scale(x1, midpoint_x + ep_x, rx), scale(y1, midpoint_y + ep_y, ry)])
-
                     iteration += 1
-
-                # print("<!-- params:", last_pos[0], last_pos[1], arc[0], arc[1], arc[2], arc[3], arc[4], end_pos[0], end_pos[1], "-->")
-                #beziers = elliptical_arc_to_bezier(last_pos[0], last_pos[1], arc[0], arc[1], arc[2], arc[3], arc[4], end_pos[0], end_pos[1])
-                #for b in beziers:
-                #    print("<!-- ... Cubic bezier curve from", last_pos, "to", end_pos, "with control points", 
-                #          (b[2], b[3]), (b[4], b[5]), "-->")
-                    
-                #    new_commands.append(["E", b[0], b[1], b[2], b[3], b[4], b[5]])
-            
-
 
 
                 last_pos = end_pos
 
+            # Include original for debug
+            #new_commands.append(c)
+
             bezier_path = ["C"]
             for b in beziers:
                 bezier_path = bezier_path + b
-            # Include original for debug
-            #new_commands.append(c)
             new_commands.append(bezier_path)
         else:
             new_commands.append(c)
