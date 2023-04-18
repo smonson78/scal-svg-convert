@@ -13,7 +13,7 @@ def rotate(origin, point, angle):
     dx = point[0] - origin[0]
     dy = point[1] - origin[1]
     dx_ = (dx * math.cos(angle)) - (dy * math.sin(angle))
-    dy_ = (dy * math.cos(angle)) + (dx * math.sin(angle))
+    dy_ = (dx * math.sin(angle)) + (dy * math.cos(angle))
     return (origin[0] + dx_, origin[1] + dy_)
 
 # Scale a 1-dimensional quantity
@@ -101,6 +101,16 @@ def fix_path(path):
                 last_pos = (c[1], c[2])
                 print(f"<!-- Absolute move to {last_pos} -->")
 
+        if cmd == "l":
+            # Line
+            if isrelative:
+                last_pos = (last_pos[0] + c[1], last_pos[1] + c[2])
+                print(f"<!-- Relative move to {last_pos} -->")
+            else:
+                last_pos = (c[1], c[2])
+                print(f"<!-- Absolute move to {last_pos} -->")
+
+
         if cmd == "a":
             arcs = args[:]
             beziers = []
@@ -121,7 +131,7 @@ def fix_path(path):
 
                 rx = arc[0]
                 ry = arc[1]
-                angle = arc[2]
+                angle = (arc[2] / 180) * math.pi
                 large_arc_flag = int(arc[3])
                 sweep_flag = int(arc[4])
 
@@ -264,9 +274,18 @@ def fix_path(path):
                     fig_4x = (1.0 - fig_y) * 4 / 3
                     #print(f"<!--         y={fig_y} and 4x={fig_4x} -->")
 
-                    fig_2L = fig_4x / math.cos(fig_a)
+                    #fig_2L = fig_4x / math.cos(fig_a)
 
-                    # start and end control points
+                    # Kaden/dad's value (works out the same)
+                    fig_2L = 4.0 / 3.0 * math.tan(half_angle / 2)
+
+                    print(f"<!--         Got L value of {fig_2L / 2} -->")
+                    print(f"<!--           a={as_degrees(half_angle)} -->")
+                    print(f"<!--           tan(a/2)={math.tan(half_angle/2)} -->")
+                    print(f"<!--           r={1} -->")
+                    print(f"<!--           L={fig_2L/2} -->")
+
+                    # start and end control points, at right angles to start and end points at a distance of 2L
                     adjustment = -(math.pi / 2) if sweep_flag else (math.pi / 2)
 
                     start_2L_x = midpoint_x + sp_x + (math.cos(start_angle + adjustment) * fig_2L)
@@ -280,18 +299,23 @@ def fix_path(path):
                     us_scontrol_y = scale(y1, start_2L_y, ry)
                     us_econtrol_x = scale(x1, end_2L_x, rx)
                     us_econtrol_y = scale(y1, end_2L_y, ry)
+                    us_seg_endpoint = (scale(x1, midpoint_x + ep_x, rx), scale(y1, midpoint_y + ep_y, ry))
 
-                    # Rotate back to original angle
+                    # Rotate control points back to original angle
                     r_scontrol = rotate(last_pos, (us_scontrol_x, us_scontrol_y), angle)
                     r_econtrol = rotate(last_pos, (us_econtrol_x, us_econtrol_y), angle)
 
-                    beziers.append([r_scontrol[0], r_scontrol[1], r_econtrol[0], r_econtrol[1], scale(x1, midpoint_x + ep_x, rx), scale(y1, midpoint_y + ep_y, ry)])
+                    # Rotated end point for segment
+                    r_seg_end = rotate(last_pos, us_seg_endpoint, angle)
+
+                    beziers.append([r_scontrol[0], r_scontrol[1], r_econtrol[0], r_econtrol[1], 
+                        r_seg_end[0], r_seg_end[1]])
 
                     #if iteration == 1:
                     if False:
                         # Construction lines
-                        #print(f'<circle style="fill:#000000;fill-opacity:1" r="1" cx="{scale(x1, midpoint_x + sp_x, rx)}" cy="{scale(y1, midpoint_y + sp_y, rx) + 120}" />')
-                        #print(f'<circle style="fill:#000000;fill-opacity:1" r="1" cx="{scale(x1, midpoint_x + ep_x, rx)}" cy="{scale(y1, midpoint_y + ep_y, rx) + 120}" />')
+                        print(f'<circle style="fill:#000000;fill-opacity:1" r="1" cx="{scale(x1, midpoint_x + sp_x, rx)}" cy="{scale(y1, midpoint_y + sp_y, rx) + 120}" />')
+                        print(f'<circle style="fill:#000000;fill-opacity:1" r="1" cx="{scale(x1, midpoint_x + ep_x, rx)}" cy="{scale(y1, midpoint_y + ep_y, rx) + 120}" />')
                         print(f'<path style="stroke:#000000;stroke-width:0.25;fill-opacity:0" d="M {scale(x1, midpoint_x + sp_x, rx)} {scale(y1, midpoint_y + sp_y, rx) + 120} L {scale(x1, midpoint_x, rx)} {scale(y1, midpoint_y, rx) + 120}" />')
                         print(f'<path style="stroke:#000000;stroke-width:0.25;fill-opacity:0" d="M {scale(x1, midpoint_x + ep_x, rx)} {scale(y1, midpoint_y + ep_y, rx) + 120} L {scale(x1, midpoint_x, rx)} {scale(y1, midpoint_y, rx) + 120}" />')
 
@@ -320,14 +344,23 @@ def fix_path(path):
                               f'{scale(x1, midpoint_x + ep_x, rx)} {scale(y1, midpoint_y + ep_y, rx) + 120} Z" />')
                         
                         # Test dots
-                        #print(f'<circle style="fill:#0000ff;fill-opacity:1" r="1" cx="{r_scontrol[0]}" cy="{r_scontrol[1]}" />')
-                        #print(f'<circle style="fill:#0000ff;fill-opacity:1" r="1" cx="{r_econtrol[0]}" cy="{r_econtrol[1]}" />')
+                        print(f'<circle style="fill:#0000ff;fill-opacity:1" r="1" cx="{r_scontrol[0]}" cy="{r_scontrol[1]}" />')
+                        print(f'<circle style="fill:#0000ff;fill-opacity:1" r="1" cx="{r_econtrol[0]}" cy="{r_econtrol[1]}" />')
 
                         # Un-rotate/scale start and end pos
                         r_seg_start_pos = rotate(last_pos, (scale(x1, midpoint_x + sp_x, rx), scale(y1, midpoint_y + sp_y, ry)), angle)
                         r_seg_end_pos = rotate(last_pos, (scale(x1, midpoint_x + ep_x, rx), scale(y1, midpoint_y + ep_y, ry)), angle)
-                        #print(f'<path style="stroke:#000000;stroke-width:0.15;fill-opacity:0" d="M {r_scontrol[0]} {r_scontrol[1]} L {r_seg_start_pos[0]} {r_seg_start_pos[1]}" />')
-                        #print(f'<path style="stroke:#000000;stroke-width:0.15;fill-opacity:0" d="M {r_econtrol[0]} {r_econtrol[1]} L {r_seg_end_pos[0]} {r_seg_end_pos[1]}" />')
+                        print(f'<path style="stroke:#000000;stroke-width:0.15;fill-opacity:0" d="M {r_scontrol[0]} {r_scontrol[1]} L {r_seg_start_pos[0]} {r_seg_start_pos[1]}" />')
+                        print(f'<path style="stroke:#000000;stroke-width:0.15;fill-opacity:0" d="M {r_econtrol[0]} {r_econtrol[1]} L {r_seg_end_pos[0]} {r_seg_end_pos[1]}" />')
+
+                        # Lines for L and half L
+                        test_L_x = midpoint_x + sp_x + (math.cos(start_angle + adjustment) * fig_2L / 2)
+                        test_L_y = midpoint_y + sp_y + (-math.sin(start_angle + adjustment) * fig_2L / 2)
+                        print(f'<circle style="fill:#000000;fill-opacity:1" r="0.25" cx="{scale(x1, test_L_x, rx)}" cy="{scale(y1, test_L_y, rx) + 120}" />')
+
+                        test_L_x = midpoint_x + sp_x + (math.cos(start_angle + adjustment) * 3 * fig_2L / 4)
+                        test_L_y = midpoint_y + sp_y + (-math.sin(start_angle + adjustment) * 3 * fig_2L / 4)
+                        print(f'<circle style="fill:#000000;fill-opacity:1" r="0.25" cx="{scale(x1, test_L_x, rx)}" cy="{scale(y1, test_L_y, rx) + 120}" />')
 
 
                         # The actual bezier in the original position
